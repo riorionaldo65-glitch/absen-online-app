@@ -1,0 +1,447 @@
+<!doctype html>
+<html lang="id" class="h-full">
+ <head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Absen Online</title>
+  <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+  <script src="https://cdn.jsdelivr.net/npm/lucide@0.263.0/dist/umd/lucide.min.js"></script>
+  <script src="/_sdk/element_sdk.js"></script>
+  <script src="/_sdk/data_sdk.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet">
+  <style>
+    * { font-family: 'Plus Jakarta Sans', sans-serif; }
+    .camera-ring {
+      background: conic-gradient(#10b981, #059669, #34d399, #10b981);
+      animation: spin-slow 4s linear infinite;
+    }
+    @keyframes spin-slow { to { transform: rotate(360deg); } }
+    @keyframes pulse-dot { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+    .rec-dot { animation: pulse-dot 1s ease-in-out infinite; }
+    @keyframes fade-in { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    .fade-in { animation: fade-in 0.4s ease-out; }
+    @keyframes shake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-5px); } 75% { transform: translateX(5px); } }
+    .shake { animation: shake 0.4s ease-in-out; }
+    video { transform: scaleX(-1); }
+    .snap-flash { animation: flash 0.3s ease-out; }
+    @keyframes flash { 0% { opacity: 1; } 100% { opacity: 0; } }
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-thumb { background: #374151; border-radius: 3px; }
+  </style>
+  <style>body { box-sizing: border-box; }</style>
+ </head>
+ <body class="h-full">
+  <div id="app" class="h-full w-full bg-gray-950 text-white overflow-auto"><!-- Toast -->
+   <div id="toast" class="fixed top-4 left-1/2 -translate-x-1/2 z-50 hidden">
+    <div id="toast-inner" class="px-5 py-3 rounded-xl shadow-2xl text-sm font-semibold flex items-center gap-2"></div>
+   </div><!-- Header -->
+   <header class="bg-gray-900 border-b border-gray-800 px-4 py-4">
+    <div class="max-w-lg mx-auto flex items-center justify-between">
+     <div>
+      <h1 id="el-title" class="text-xl font-800 text-emerald-400">Absen Online</h1>
+      <p id="el-company" class="text-xs text-gray-500 mt-0.5">PT. Contoh Indonesia</p>
+     </div>
+     <div class="text-right">
+      <p id="live-date" class="text-xs text-gray-400"></p>
+      <p id="live-time" class="text-2xl font-700 text-white tabular-nums"></p>
+     </div>
+    </div>
+   </header><!-- Tabs -->
+   <div class="max-w-lg mx-auto px-4 mt-4 flex gap-2"><button id="tab-absen" onclick="switchTab('absen')" class="flex-1 py-2.5 rounded-xl text-sm font-600 bg-emerald-600 text-white transition-all"> <span class="flex items-center justify-center gap-1.5"><i data-lucide="camera" style="width:16px;height:16px"></i> Absen</span> </button> <button id="tab-riwayat" onclick="switchTab('riwayat')" class="flex-1 py-2.5 rounded-xl text-sm font-600 bg-gray-800 text-gray-400 transition-all"> <span class="flex items-center justify-center gap-1.5"><i data-lucide="list" style="width:16px;height:16px"></i> Riwayat</span> </button>
+   </div><!-- ABSEN TAB -->
+   <div id="page-absen" class="max-w-lg mx-auto px-4 py-4"><!-- Name Input -->
+    <div class="mb-4"><label for="nama-input" class="block text-xs font-600 text-gray-400 mb-1.5">Nama Lengkap</label> <input id="nama-input" type="text" placeholder="Masukkan nama kamu..." class="w-full bg-gray-900 border border-gray-700 rounded-xl px-4 py-3 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all">
+    </div><!-- Camera -->
+    <div class="relative rounded-2xl overflow-hidden bg-gray-900 border border-gray-800 mb-4">
+     <div id="camera-status" class="absolute top-3 left-3 z-10 flex items-center gap-1.5 bg-black/60 backdrop-blur-sm px-2.5 py-1 rounded-full"><span class="rec-dot w-2 h-2 rounded-full bg-red-500"></span> <span class="text-[10px] font-600 text-gray-300">KAMERA AKTIF</span>
+     </div>
+     <div id="flash-overlay" class="absolute inset-0 bg-white z-20 opacity-0 pointer-events-none"></div>
+     <video id="video" autoplay playsinline class="w-full aspect-[4/3] object-cover bg-gray-900"></video>
+     <canvas id="canvas" class="hidden"></canvas>
+     <div id="camera-off" class="hidden w-full aspect-[4/3] bg-gray-900 flex flex-col items-center justify-center"><i data-lucide="camera-off" style="width:48px;height:48px;color:#4b5563"></i>
+      <p class="text-gray-600 text-sm mt-3">Kamera tidak tersedia</p><button onclick="startCamera()" class="mt-3 text-emerald-400 text-xs font-600 underline">Coba lagi</button>
+     </div>
+    </div><!-- Face Guide -->
+    <p id="face-guide" class="text-center text-xs text-gray-500 mb-4">📸 Pastikan wajah terlihat jelas di kamera</p><!-- Absen Buttons -->
+    <div class="grid grid-cols-2 gap-3 mb-4"><button id="btn-masuk" onclick="doAbsen('Masuk')" class="relative py-3.5 rounded-xl font-700 text-sm bg-emerald-600 hover:bg-emerald-500 text-white transition-all active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed"> <span class="btn-label flex items-center justify-center gap-2"><i data-lucide="log-in" style="width:18px;height:18px"></i> MASUK</span> <span class="btn-loading hidden flex items-center justify-center gap-2">
+       <svg class="animate-spin w-5 h-5" viewbox="0 0 24 24">
+        <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" fill="none" stroke-dasharray="30 70"></circle>
+       </svg> Menyimpan... </span> </button> <button id="btn-pulang" onclick="doAbsen('Pulang')" class="relative py-3.5 rounded-xl font-700 text-sm bg-blue-600 hover:bg-blue-500 text-white transition-all active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed"> <span class="btn-label flex items-center justify-center gap-2"><i data-lucide="log-out" style="width:18px;height:18px"></i> PULANG</span> <span class="btn-loading hidden flex items-center justify-center gap-2">
+       <svg class="animate-spin w-5 h-5" viewbox="0 0 24 24">
+        <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" fill="none" stroke-dasharray="30 70"></circle>
+       </svg> Menyimpan... </span> </button>
+    </div><!-- Success Card (hidden) -->
+    <div id="success-card" class="hidden fade-in mb-4 bg-emerald-950/50 border border-emerald-800 rounded-2xl p-4">
+     <div class="flex items-center gap-3">
+      <div class="w-12 h-12 rounded-full bg-emerald-600 flex items-center justify-center flex-shrink-0"><i data-lucide="check" style="width:24px;height:24px;color:white"></i>
+      </div>
+      <div>
+       <p class="font-700 text-emerald-400" id="success-title">Absen Berhasil!</p>
+       <p class="text-xs text-gray-400 mt-0.5" id="success-detail"></p>
+      </div>
+     </div>
+    </div>
+   </div><!-- RIWAYAT TAB -->
+   <div id="page-riwayat" class="max-w-lg mx-auto px-4 py-4 hidden">
+    <div class="flex items-center justify-between mb-3">
+     <h2 class="text-sm font-700 text-gray-300">Riwayat Absensi</h2><button onclick="exportCSV()" class="flex items-center gap-1.5 bg-gray-800 hover:bg-gray-700 px-3 py-1.5 rounded-lg text-xs font-600 text-emerald-400 transition-all"> <i data-lucide="download" style="width:14px;height:14px"></i> Export CSV </button>
+    </div>
+    <div id="riwayat-empty" class="hidden py-16 text-center"><i data-lucide="inbox" style="width:48px;height:48px;color:#374151;margin:0 auto"></i>
+     <p class="text-gray-600 text-sm mt-3">Belum ada data absensi</p>
+    </div>
+    <div id="riwayat-list" class="space-y-2"></div>
+    <div id="riwayat-count" class="text-center text-xs text-gray-600 mt-4"></div>
+   </div><!-- Delete Confirm Modal -->
+   <div id="delete-modal" class="fixed inset-0 z-40 hidden">
+    <div class="absolute inset-0 bg-black/70" onclick="closeDeleteModal()"></div>
+    <div class="absolute bottom-0 left-0 right-0 bg-gray-900 border-t border-gray-700 rounded-t-2xl p-5 fade-in">
+     <p class="text-sm font-700 text-white mb-1">Hapus data absensi?</p>
+     <p class="text-xs text-gray-400 mb-4" id="delete-detail"></p>
+     <div class="flex gap-3"><button onclick="closeDeleteModal()" class="flex-1 py-2.5 rounded-xl bg-gray-800 text-sm font-600 text-gray-300">Batal</button> <button onclick="confirmDelete()" id="btn-confirm-delete" class="flex-1 py-2.5 rounded-xl bg-red-600 text-sm font-700 text-white">Hapus</button>
+     </div>
+    </div>
+   </div>
+  </div>
+  <script>
+// State
+let allRecords = [];
+let cameraReady = false;
+let pendingDeleteRecord = null;
+let currentRecordCount = 0;
+
+// Clock
+function updateClock() {
+  const now = new Date();
+  const dateOpts = { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' };
+  document.getElementById('live-date').textContent = now.toLocaleDateString('id-ID', dateOpts);
+  document.getElementById('live-time').textContent = now.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+}
+updateClock();
+setInterval(updateClock, 1000);
+
+// Camera
+async function startCamera() {
+  const video = document.getElementById('video');
+  const camOff = document.getElementById('camera-off');
+  const camStatus = document.getElementById('camera-status');
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } }, audio: false });
+    video.srcObject = stream;
+    video.classList.remove('hidden');
+    camOff.classList.add('hidden');
+    camStatus.classList.remove('hidden');
+    cameraReady = true;
+  } catch (e) {
+    console.error('Camera error:', e);
+    video.classList.add('hidden');
+    camOff.classList.remove('hidden');
+    camStatus.classList.add('hidden');
+    cameraReady = false;
+  }
+}
+startCamera();
+
+// Capture photo (just a flash effect to confirm)
+function capturePhoto() {
+  if (!cameraReady) return false;
+  const flash = document.getElementById('flash-overlay');
+  flash.classList.remove('snap-flash');
+  void flash.offsetWidth;
+  flash.style.opacity = '1';
+  flash.classList.add('snap-flash');
+  setTimeout(() => { flash.style.opacity = '0'; }, 300);
+  return true;
+}
+
+// Toast
+function showToast(msg, type) {
+  const t = document.getElementById('toast');
+  const inner = document.getElementById('toast-inner');
+  inner.className = 'px-5 py-3 rounded-xl shadow-2xl text-sm font-semibold flex items-center gap-2 ';
+  if (type === 'success') inner.className += 'bg-emerald-600 text-white';
+  else if (type === 'error') inner.className += 'bg-red-600 text-white';
+  else inner.className += 'bg-gray-800 text-gray-200';
+  inner.innerHTML = msg;
+  t.classList.remove('hidden');
+  clearTimeout(t._timer);
+  t._timer = setTimeout(() => t.classList.add('hidden'), 3000);
+}
+
+// Tabs
+function switchTab(tab) {
+  const tabAbsen = document.getElementById('tab-absen');
+  const tabRiwayat = document.getElementById('tab-riwayat');
+  const pageAbsen = document.getElementById('page-absen');
+  const pageRiwayat = document.getElementById('page-riwayat');
+  if (tab === 'absen') {
+    tabAbsen.className = 'flex-1 py-2.5 rounded-xl text-sm font-600 bg-emerald-600 text-white transition-all';
+    tabRiwayat.className = 'flex-1 py-2.5 rounded-xl text-sm font-600 bg-gray-800 text-gray-400 transition-all';
+    pageAbsen.classList.remove('hidden');
+    pageRiwayat.classList.add('hidden');
+  } else {
+    tabRiwayat.className = 'flex-1 py-2.5 rounded-xl text-sm font-600 bg-emerald-600 text-white transition-all';
+    tabAbsen.className = 'flex-1 py-2.5 rounded-xl text-sm font-600 bg-gray-800 text-gray-400 transition-all';
+    pageRiwayat.classList.remove('hidden');
+    pageAbsen.classList.add('hidden');
+  }
+  lucide.createIcons();
+}
+
+// Absen
+async function doAbsen(tipe) {
+  const namaInput = document.getElementById('nama-input');
+  const nama = namaInput.value.trim();
+  if (!nama) {
+    namaInput.classList.add('shake', 'border-red-500');
+    setTimeout(() => namaInput.classList.remove('shake', 'border-red-500'), 600);
+    showToast('⚠️ Masukkan nama terlebih dahulu', 'error');
+    return;
+  }
+  if (!cameraReady) {
+    showToast('⚠️ Kamera belum aktif, coba nyalakan kamera', 'error');
+    return;
+  }
+  if (currentRecordCount >= 999) {
+    showToast('⚠️ Data sudah penuh (maks 999). Hapus data lama dulu.', 'error');
+    return;
+  }
+
+  const btn = tipe === 'Masuk' ? document.getElementById('btn-masuk') : document.getElementById('btn-pulang');
+  btn.disabled = true;
+  btn.querySelector('.btn-label').classList.add('hidden');
+  btn.querySelector('.btn-loading').classList.remove('hidden');
+  btn.querySelector('.btn-loading').classList.add('flex');
+
+  capturePhoto();
+
+  const now = new Date();
+  const tanggal = now.toLocaleDateString('id-ID', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  const waktu = now.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+
+  // Determine status based on time
+  let status = 'Tepat Waktu';
+  if (tipe === 'Masuk') {
+    const h = now.getHours();
+    const m = now.getMinutes();
+    if (h > 8 || (h === 8 && m > 0)) status = 'Terlambat';
+  }
+
+  const result = await window.dataSdk.create({ nama, tanggal, waktu, tipe, status });
+
+  btn.disabled = false;
+  btn.querySelector('.btn-label').classList.remove('hidden');
+  btn.querySelector('.btn-loading').classList.add('hidden');
+  btn.querySelector('.btn-loading').classList.remove('flex');
+
+  if (result.isOk) {
+    showToast('✅ Absen ' + tipe + ' berhasil!', 'success');
+    const sc = document.getElementById('success-card');
+    sc.classList.remove('hidden');
+    document.getElementById('success-title').textContent = 'Absen ' + tipe + ' Berhasil!';
+    document.getElementById('success-detail').textContent = nama + ' • ' + tanggal + ' ' + waktu + ' • ' + status;
+    setTimeout(() => sc.classList.add('hidden'), 5000);
+  } else {
+    showToast('❌ Gagal menyimpan. Coba lagi.', 'error');
+  }
+}
+
+// Render riwayat
+function renderRiwayat(data) {
+  const list = document.getElementById('riwayat-list');
+  const empty = document.getElementById('riwayat-empty');
+  const countEl = document.getElementById('riwayat-count');
+
+  if (!data || data.length === 0) {
+    list.innerHTML = '';
+    empty.classList.remove('hidden');
+    countEl.textContent = '';
+    return;
+  }
+  empty.classList.add('hidden');
+  countEl.textContent = data.length + ' data absensi tersimpan di Canva Sheet';
+
+  const sorted = [...data].sort((a, b) => {
+    const da = parseDate(a.tanggal, a.waktu);
+    const db = parseDate(b.tanggal, b.waktu);
+    return db - da;
+  });
+
+  const existingMap = new Map();
+  [...list.children].forEach(el => existingMap.set(el.dataset.id, el));
+
+  const newIds = new Set(sorted.map(r => r.__backendId));
+  existingMap.forEach((el, id) => { if (!newIds.has(id)) el.remove(); });
+
+  sorted.forEach((record, i) => {
+    const id = record.__backendId;
+    let el = list.querySelector(`[data-id="${id}"]`);
+    if (!el) {
+      el = document.createElement('div');
+      el.dataset.id = id;
+      el.className = 'bg-gray-900 border border-gray-800 rounded-xl p-3 flex items-center justify-between fade-in';
+      list.appendChild(el);
+    }
+    const isMasuk = record.tipe === 'Masuk';
+    const isTerlambat = record.status === 'Terlambat';
+    el.innerHTML = `
+      <div class="flex items-center gap-3 min-w-0">
+        <div class="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${isMasuk ? 'bg-emerald-900/60 text-emerald-400' : 'bg-blue-900/60 text-blue-400'}">
+          <i data-lucide="${isMasuk ? 'log-in' : 'log-out'}" style="width:18px;height:18px"></i>
+        </div>
+        <div class="min-w-0">
+          <p class="text-sm font-700 text-white truncate">${esc(record.nama)}</p>
+          <p class="text-[11px] text-gray-500">${esc(record.tanggal)} • ${esc(record.waktu)}</p>
+        </div>
+      </div>
+      <div class="flex items-center gap-2 flex-shrink-0">
+        <div class="text-right">
+          <span class="text-[10px] font-700 px-2 py-0.5 rounded-full ${isMasuk ? 'bg-emerald-900/60 text-emerald-400' : 'bg-blue-900/60 text-blue-400'}">${esc(record.tipe)}</span>
+          <p class="text-[10px] mt-0.5 ${isTerlambat ? 'text-red-400' : 'text-emerald-400'}">${esc(record.status)}</p>
+        </div>
+        <button onclick="openDeleteModal('${id}')" class="p-1.5 rounded-lg hover:bg-gray-800 text-gray-600 hover:text-red-400 transition-all">
+          <i data-lucide="trash-2" style="width:14px;height:14px"></i>
+        </button>
+      </div>`;
+
+    // Maintain order
+    if (list.children[i] !== el) {
+      list.insertBefore(el, list.children[i]);
+    }
+  });
+
+  lucide.createIcons();
+}
+
+function parseDate(tanggal, waktu) {
+  try {
+    const [d, m, y] = tanggal.split('/');
+    return new Date(`${y}-${m}-${d}T${waktu}`);
+  } catch { return new Date(0); }
+}
+
+function esc(s) { const d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
+
+// Delete
+function openDeleteModal(id) {
+  const r = allRecords.find(x => x.__backendId === id);
+  if (!r) return;
+  pendingDeleteRecord = r;
+  document.getElementById('delete-detail').textContent = r.nama + ' — ' + r.tipe + ' ' + r.tanggal + ' ' + r.waktu;
+  document.getElementById('delete-modal').classList.remove('hidden');
+}
+function closeDeleteModal() {
+  document.getElementById('delete-modal').classList.add('hidden');
+  pendingDeleteRecord = null;
+}
+async function confirmDelete() {
+  if (!pendingDeleteRecord) return;
+  const btn = document.getElementById('btn-confirm-delete');
+  btn.disabled = true;
+  btn.textContent = 'Menghapus...';
+  const result = await window.dataSdk.delete(pendingDeleteRecord);
+  btn.disabled = false;
+  btn.textContent = 'Hapus';
+  closeDeleteModal();
+  if (result.isOk) showToast('🗑️ Data dihapus', 'success');
+  else showToast('❌ Gagal menghapus', 'error');
+}
+
+// Export CSV
+function exportCSV() {
+  if (!allRecords.length) { showToast('Belum ada data', 'error'); return; }
+  let csv = 'Nama,Tanggal,Waktu,Tipe,Status\n';
+  allRecords.forEach(r => {
+    csv += `"${r.nama}","${r.tanggal}","${r.waktu}","${r.tipe}","${r.status}"\n`;
+  });
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'absensi_' + new Date().toISOString().slice(0, 10) + '.csv';
+  a.click();
+  URL.revokeObjectURL(url);
+  showToast('📥 File CSV berhasil diunduh!', 'success');
+}
+
+// Data SDK
+const dataHandler = {
+  onDataChanged(data) {
+    allRecords = data;
+    currentRecordCount = data.length;
+    renderRiwayat(data);
+  }
+};
+
+// Element SDK
+const defaultConfig = {
+  app_title: 'Absen Online',
+  company_name: 'SMA NEGERI 1 MANUHING RAYA',
+  background_color: '#030712',
+  surface_color: '#111827',
+  text_color: '#ffffff',
+  primary_action: '#059669',
+  secondary_action: '#2563eb'
+};
+
+window.elementSdk.init({
+  defaultConfig,
+  onConfigChange: async (config) => {
+    document.getElementById('el-title').textContent = config.app_title || defaultConfig.app_title;
+    document.getElementById('el-company').textContent = config.company_name || defaultConfig.company_name;
+
+    const bg = config.background_color || defaultConfig.background_color;
+    const surface = config.surface_color || defaultConfig.surface_color;
+    const text = config.text_color || defaultConfig.text_color;
+    const primary = config.primary_action || defaultConfig.primary_action;
+    const secondary = config.secondary_action || defaultConfig.secondary_action;
+
+    document.getElementById('app').style.backgroundColor = bg;
+    document.querySelector('header').style.backgroundColor = surface;
+    document.getElementById('el-title').style.color = primary;
+    document.getElementById('live-time').style.color = text;
+    document.getElementById('btn-masuk').style.backgroundColor = primary;
+    document.getElementById('btn-pulang').style.backgroundColor = secondary;
+
+    const font = config.font_family || defaultConfig.font_family || 'Plus Jakarta Sans';
+    document.getElementById('app').style.fontFamily = font + ', sans-serif';
+
+    if (config.font_size) {
+      const s = config.font_size;
+      document.getElementById('el-title').style.fontSize = s * 1.4 + 'px';
+      document.getElementById('el-company').style.fontSize = s * 0.75 + 'px';
+      document.getElementById('live-time').style.fontSize = s * 1.6 + 'px';
+    }
+  },
+  mapToCapabilities: (config) => ({
+    recolorables: [
+      { get: () => config.background_color || defaultConfig.background_color, set: (v) => { config.background_color = v; window.elementSdk.setConfig({ background_color: v }); } },
+      { get: () => config.surface_color || defaultConfig.surface_color, set: (v) => { config.surface_color = v; window.elementSdk.setConfig({ surface_color: v }); } },
+      { get: () => config.text_color || defaultConfig.text_color, set: (v) => { config.text_color = v; window.elementSdk.setConfig({ text_color: v }); } },
+      { get: () => config.primary_action || defaultConfig.primary_action, set: (v) => { config.primary_action = v; window.elementSdk.setConfig({ primary_action: v }); } },
+      { get: () => config.secondary_action || defaultConfig.secondary_action, set: (v) => { config.secondary_action = v; window.elementSdk.setConfig({ secondary_action: v }); } }
+    ],
+    borderables: [],
+    fontEditable: {
+      get: () => config.font_family || 'Plus Jakarta Sans',
+      set: (v) => { config.font_family = v; window.elementSdk.setConfig({ font_family: v }); }
+    },
+    fontSizeable: {
+      get: () => config.font_size || 16,
+      set: (v) => { config.font_size = v; window.elementSdk.setConfig({ font_size: v }); }
+    }
+  }),
+  mapToEditPanelValues: (config) => new Map([
+    ['app_title', config.app_title || defaultConfig.app_title],
+    ['company_name', config.company_name || defaultConfig.company_name]
+  ])
+});
+
+(async () => {
+  const r = await window.dataSdk.init(dataHandler);
+  if (!r.isOk) console.error('Data SDK init failed');
+})();
+
+lucide.createIcons();
+</script>
+ <script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'9f2acd57c1dbfe1c',t:'MTc3NzI2MTE4OC4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+</html>
